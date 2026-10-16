@@ -33,7 +33,24 @@ docker run --rm -p 8000:8000 showrunner
 
 ## Storage and Supabase
 
-The default storage selection is `memory`. Production storage will be selected with `STORAGE_BACKEND=supabase`; the Supabase service key remains backend-only. Required variable names are in `.env.example`. Apply `supabase/migrations/0001_initial.sql` in the Supabase SQL Editor or with the Supabase CLI before enabling the repository.
+The default storage selection is `memory`. Production storage will be selected with `STORAGE_BACKEND=supabase`; the Supabase service key remains backend-only. Required variable names are in `.env.example` and must only be loaded by the backend. Apply `supabase/migrations/0001_initial.sql` in the Supabase SQL Editor, or with the Supabase CLI after linking your project:
+
+```bash
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+```
+
+The migration enables Row Level Security on `pipeline_runs` and intentionally creates no public policies. Backend access is expected to use the Supabase service key.
+
+## Offline Docker tests
+
+The image contains Node.js, Python, `make`, frontend dependencies, and backend dependencies. Build it while connected, then the test run needs no network:
+
+```bash
+docker build -t showrunner .
+docker run --rm --network none showrunner make test
+docker run --rm -p 8000:8000 showrunner
+```
 
 ## Deployment
 

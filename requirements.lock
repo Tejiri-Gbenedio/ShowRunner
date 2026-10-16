@@ -3,3 +3,4 @@ pydantic-settings==2.7.1
 uvicorn==0.34.0
 httpx==0.28.1
 pytest==8.3.4
+anyio==3.7.1

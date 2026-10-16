@@ -1,0 +1,11 @@
+name: test
+on: [push, pull_request]
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build --tag showrunner .
+      - name: Run offline test suite
+        run: docker run --rm --network none showrunner make test

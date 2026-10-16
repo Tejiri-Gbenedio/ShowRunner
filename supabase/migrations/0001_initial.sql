@@ -7,3 +7,5 @@ create table if not exists pipeline_runs (
 );
 
 create index if not exists pipeline_runs_user_id_idx on pipeline_runs(user_id);
+
+alter table pipeline_runs enable row level security;
