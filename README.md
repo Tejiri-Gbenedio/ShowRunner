@@ -33,7 +33,7 @@ docker run --rm -p 8000:8000 showrunner
 
 ## Storage and Supabase
 
-The default storage selection is `memory`. Production storage will be selected with `STORAGE_BACKEND=supabase`; the Supabase service key remains backend-only. Required variable names are in `.env.example`. SQL migrations will be added before the Supabase repository is enabled.
+The default storage selection is `memory`. Production storage will be selected with `STORAGE_BACKEND=supabase`; the Supabase service key remains backend-only. Required variable names are in `.env.example`. Apply `supabase/migrations/0001_initial.sql` in the Supabase SQL Editor or with the Supabase CLI before enabling the repository.
 
 ## Deployment
 
