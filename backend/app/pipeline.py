@@ -40,6 +40,7 @@ def transition(current: PipelineState, target: PipelineState) -> PipelineState:
 class PipelineRun:
     id: UUID
     owner_id: UUID
+    preset_id: str = "survival-thriller"
     state: PipelineState = PipelineState.DRAFT
     created_at: datetime | None = None
     updated_at: datetime | None = None

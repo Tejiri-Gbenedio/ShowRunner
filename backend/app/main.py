@@ -52,7 +52,7 @@ def create_run(preset_id: str, x_anonymous_user_id: str | None = Header(default=
     if len(recent) >= MAX_RUNS_PER_HOUR:
         raise HTTPException(429, "run creation rate limit exceeded")
     _run_windows[owner] = [*recent, now]
-    return output(repository.create(PipelineRun(uuid4(), owner)))
+    return output(repository.create(PipelineRun(uuid4(), owner, preset_id=preset_id)))
 
 @app.get("/api/runs")
 def list_runs(x_anonymous_user_id: str | None = Header(default=None)) -> list[dict]:
@@ -69,7 +69,7 @@ def advance_run(run_id: UUID, x_anonymous_user_id: str | None = Header(default=N
     run = get_run(owner, run_id)
     if run.state not in {PipelineState.DRAFT, PipelineState.REVISION_REQUESTED}:
         raise HTTPException(409, "run is not ready to advance")
-    preset = next(p for p in PRESETS if p.id == "survival-thriller")
+    preset = next(p for p in PRESETS if p.id == run.preset_id)
     for state in (PipelineState.QUEUED, PipelineState.GENERATING, PipelineState.AWAITING_REVIEW):
         run = repository.update_for_owner(owner, run_id, state)
     content = asdict(run_offline_sequence(preset))
