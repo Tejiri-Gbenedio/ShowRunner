@@ -1,0 +1,13 @@
+[project]
+name = "showrunner"
+version = "0.1.0"
+description = "Offline-first AI agent pipeline for faceless YouTube Shorts channels"
+requires-python = ">=3.12,<3.13"
+dependencies = ["fastapi==0.115.6", "pydantic-settings==2.7.1", "uvicorn==0.34.0"]
+
+[project.optional-dependencies]
+test = ["httpx==0.28.1", "pytest==8.3.4"]
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+testpaths = ["backend/tests"]
