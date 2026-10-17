@@ -24,7 +24,7 @@ COPY --from=frontend-build /usr/local/bin/npm /usr/local/bin/npm
 COPY --from=frontend-build /usr/local/bin/npx /usr/local/bin/npx
 COPY --from=frontend-build /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN test "$(node --version | tr -d 'v')" = "$(tr -d '\r\n' < .nvmrc)"
-COPY requirements.lock .
+COPY pyproject.toml requirements.lock .
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r requirements.lock
 COPY package.json package-lock.json ./
