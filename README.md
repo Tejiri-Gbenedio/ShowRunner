@@ -28,6 +28,7 @@ After dependencies are installed, this command performs no network requests and 
 
 ```bash
 docker build -t showrunner .
+docker run --rm --network none showrunner make test
 docker run --rm -p 8000:8000 showrunner
 ```
 
@@ -51,6 +52,8 @@ docker build -t showrunner .
 docker run --rm --network none showrunner make test
 docker run --rm -p 8000:8000 showrunner
 ```
+
+The Docker build checks that the Python and Node versions inside the image match `.python-version` and `.nvmrc`. The image uses Python 3.12.7 as its runtime, a virtual environment for locked Python dependencies, Node 22.11.0 copied from the pinned frontend build stage, and includes `make` plus both test suites. Dependencies are fetched during `docker build`; the test command itself runs with networking disabled.
 
 ## Deployment
 
