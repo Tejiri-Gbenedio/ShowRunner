@@ -31,7 +31,7 @@ External LLM, voice, image, and video services are not called by default. Set `L
 
 ### Enabling the real LLM on Render
 
-In the Render service environment settings, set `LLM_PROVIDER` to `openai_compatible`, provide the provider's base URL and model, and add the API key as the secret `LLM_API_KEY`. The key is never returned to the browser or written to logs. `LLM_TIMEOUT` defaults to 30 seconds and `LLM_MAX_TOKENS` defaults to 800. Each real run can retry invalid structured output once; a run that still fails enters `failed`. After 50 real runs per day, new runs use deterministic mock Topic and Script output and expose `mock_output=true` plus a reason.
+In the Render service environment settings, set `LLM_PROVIDER` to `openai_compatible`, provide the provider's base URL and model, and add the API key as the secret `LLM_API_KEY`. The key is never returned to the browser or written to logs. `LLM_TIMEOUT` defaults to 30 seconds and `LLM_MAX_TOKENS` defaults to 2000, with a small reservation for structured JSON. Each real agent call can make up to three total attempts; a run that still fails enters `failed` unless `LLM_FALLBACK_TO_MOCK=true`, in which case the affected agent uses a clearly labelled mock fallback. After 50 real runs per day, new runs use deterministic mock Topic and Script output and expose `mock_output=true` plus a reason.
 
 ## Local setup
 

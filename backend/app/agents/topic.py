@@ -29,9 +29,21 @@ class RealTopicAgent:
     def run(self, input: TopicInput) -> TopicOutput:
         prompt = f"Return JSON with title, hook, score, reasons for a {input.preset.niche} channel. Tone: {input.preset.tone}. Audience: short-form viewers. Preset: {input.preset.id}."
         def validate(data: dict) -> TopicOutput:
-            title, hook = data["title"], data["hook"]
-            score, reasons = data["score"], data["reasons"]
-            if not isinstance(title, str) or not isinstance(hook, str) or not isinstance(score, int) or not isinstance(reasons, list) or not all(isinstance(x, str) for x in reasons):
-                raise ValueError("invalid topic schema")
-            return TopicOutput(title, input.preset.id, hook, score, tuple(reasons))
+            candidates = data.get("candidates", data)
+            if isinstance(candidates, dict): candidates = [candidates]
+            if not isinstance(candidates, list):
+                raise ValueError("topic.candidates: expected object or list")
+            for candidate in candidates:
+                if not isinstance(candidate, dict): continue
+                title = str(candidate.get("title", candidate.get("topic", ""))).strip()
+                hook = str(candidate.get("hook", candidate.get("opening", ""))).strip()
+                if not title or not hook: continue
+                try: score = int(float(candidate.get("score", 0)))
+                except (TypeError, ValueError): score = 0
+                raw_reasons = candidate.get("reasons", candidate.get("reason", ()))
+                if isinstance(raw_reasons, str): reasons = (raw_reasons.strip(),) if raw_reasons.strip() else ()
+                elif isinstance(raw_reasons, list): reasons = tuple(str(x).strip() for x in raw_reasons if str(x).strip())
+                else: reasons = ()
+                return TopicOutput(title, input.preset.id, hook, score, reasons)
+            raise ValueError("topic.title/hook: no usable candidate")
         return self.provider.complete_json(prompt, validate)

@@ -28,6 +28,8 @@ services:
       - key: LLM_TIMEOUT
         value: "30"
       - key: LLM_MAX_TOKENS
-        value: "800"
+        value: "2000"
+      - key: LLM_FALLBACK_TO_MOCK
+        value: "true"
       - key: LLM_DAILY_CAP
         value: "50"

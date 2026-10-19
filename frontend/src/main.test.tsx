@@ -152,4 +152,54 @@ describe('production flow contracts', () => {
     await render();
     await eventually(() => expect(container.textContent).toContain('service unavailable'));
   });
+  it('normalizes validation, object, string, and network errors without rendering objects', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => response({ detail: [{ loc: ['body', 'preset_id'], msg: 'Field required' }] }, 422)));
+    await render();
+    await eventually(() => expect(container.textContent).toContain('body.preset_id: Field required'));
+    expect(container.textContent).not.toContain('[object Object]');
+
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('failed'))));
+    act(() => root.unmount()); container.innerHTML = ''; root = createRoot(container);
+    await render();
+    await eventually(() => expect(container.textContent).toContain('Network error. Check your connection and try again.'));
+  });
+
+  it('retries a failed run through the retry endpoint and updates the run', async () => {
+    const failed = run('failed', { error: 'boom' }); const retried = run('generating');
+    vi.stubGlobal('fetch', vi.fn((url: string, options?: RequestInit) => {
+      if (url.endsWith('/presets')) return response([]);
+      if (url.endsWith('/runs')) return response([failed]);
+      if (url.endsWith('/retry')) return response(retried);
+      return response(failed);
+    }));
+    await render();
+    await act(async () => (container.querySelector('button.run') as HTMLButtonElement).click());
+    await eventually(() => expect(container.textContent).toContain('Pipeline paused'));
+    await act(async () => (container.querySelector('button.secondary') as HTMLButtonElement).click());
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some(([u]) => String(u).endsWith('/retry'))).toBe(true);
+    expect(container.textContent).toContain('Agents are cutting your short');
+  });
+
+  it('keeps a draft and exposes a start action when create advance fails', async () => {
+    const draft = run('draft');
+    vi.stubGlobal('fetch', vi.fn((url: string, options?: RequestInit) => {
+      if (url.endsWith('/presets')) return response([{ id: 'survival-thriller', name: 'Survival', niche: 'N', tone: 'T', visual_style: 'V', scene_length_seconds: 8 }]);
+      if (url.includes('/runs?') && options?.method === 'POST') return response(draft, 201);
+      if (url.endsWith('/advance')) return response({ detail: 'advance failed' }, 503);
+      return response([]);
+    }));
+    await render();
+    await act(async () => (container.querySelector('button.primary') as HTMLButtonElement).click());
+    await eventually(() => expect(container.textContent).toContain('This run is ready to advance.'));
+    expect(container.textContent).toContain('START RUN'); expect(container.textContent).toContain('advance failed');
+  });
+
+  it('does not show a run mode badge for drafts', async () => {
+    const draft = run('draft', { run_mode: 'mock' });
+    vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/presets') ? response([]) : url.endsWith('/runs') ? response([draft]) : response(draft)));
+    await render();
+    await act(async () => (container.querySelector('button.run') as HTMLButtonElement).click());
+    expect(container.querySelector('.run-mode')).toBeNull();
+  });
+
 });
