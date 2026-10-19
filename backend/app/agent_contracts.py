@@ -22,6 +22,8 @@ class TopicOutput:
     title: str
     preset_id: str
     hook: str
+    score: int = 0
+    reasons: tuple[str, ...] = ()
 
 @dataclass(frozen=True)
 class ScriptSceneInput:
@@ -72,6 +74,13 @@ class QAOutput:
     checks: tuple[str, ...]
     issues: tuple[str, ...]
     scene_count: int
+    score: int = 0
+    check_results: tuple["QACheck", ...] = ()
+
+@dataclass(frozen=True)
+class QACheck:
+    label: str
+    passed: bool
 
 @dataclass(frozen=True)
 class PackagingInput:
@@ -85,6 +94,8 @@ class PackagingOutput:
     filename: str
     title: str
     scene_count: int
+    description: str = ""
+    tags: tuple[str, ...] = ()
 
 @dataclass(frozen=True)
 class OfflineRun:

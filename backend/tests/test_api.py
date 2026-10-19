@@ -36,6 +36,19 @@ def test_offline_pipeline_and_rejection_revision_approval() -> None:
     assert client.post(f"/api/runs/{run_id}/advance", headers=headers).json()["state"] == "awaiting_review"
     assert client.post(f"/api/runs/{run_id}/approve", headers=headers).json()["state"] == "approved"
 
+def test_api_run_payload_contains_review_deck_contract() -> None:
+    reset()
+    owner = str(uuid4())
+    headers = {"X-Anonymous-User-ID": owner}
+    run = client.post("/api/runs?preset_id=survival-thriller", headers=headers).json()
+    payload = client.post(f"/api/runs/{run['id']}/advance", headers=headers).json()["content"]
+    assert payload["production"]["scenes"][0]["asset_key"]
+    assert payload["qa"]["score"] >= 0
+    assert all("label" in check and "passed" in check for check in payload["qa"]["check_results"])
+    assert payload["package"]["title"]
+    assert payload["package"]["description"]
+    assert payload["package"]["tags"]
+
 def test_rate_limit_creation() -> None:
     reset()
     owner = str(uuid4())

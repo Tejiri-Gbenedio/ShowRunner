@@ -1,0 +1,16 @@
+{
+  "survival-thriller": {
+    "topic": {"title":"The Radio That Answered Back","preset_id":"survival-thriller","hook":"A dead radio crackles from beneath the snow.","score":90,"reasons":["Immediate hook for the opening seconds","Clear visual premise","Strong curiosity gap"]},
+    "script": {"preset_id":"survival-thriller","title":"The Radio That Answered Back","scenes":[{"scene_number":1,"duration_seconds":6,"visual_direction":"A gloved hand brushes ice from a battered radio.","narration":"Snow buries the trail as the radio clicks alive."}]},
+    "production": {"preset_id":"survival-thriller","production_id":"production-survival-thriller","scenes":[{"scene_number":1,"asset_key":"survival-thriller/scene-01","narration":"Snow buries the trail as the radio clicks alive."}],"scene_count":3},
+    "qa": {"preset_id":"survival-thriller","production_id":"production-survival-thriller","passed":true,"checks":["scene count is non-zero","every scene has an asset key","every scene has narration"],"issues":[],"scene_count":3,"score":100,"check_results":[{"label":"scene count is non-zero","passed":true},{"label":"every scene has an asset key","passed":true},{"label":"every scene has narration","passed":true}]},
+    "package": {"preset_id":"survival-thriller","qa_id":"production-survival-thriller","filename":"survival-thriller-short.mp4","title":"Survival Thriller — The Short","scene_count":3,"description":"A tightly edited short built from the selected channel preset.","tags":["survival-story thriller","shorts","storytelling"]}
+  },
+  "stoic-philosophy": {
+    "topic": {"title":"The Pause Before the Answer","preset_id":"stoic-philosophy","hook":"Your next response begins in the breath you take first.","score":90,"reasons":["Immediate hook for the opening seconds","Clear visual premise","Strong curiosity gap"]},
+    "script": {"preset_id":"stoic-philosophy","title":"The Pause Before the Answer","scenes":[{"scene_number":1,"duration_seconds":8,"visual_direction":"A hand rests above a blank page at dawn.","narration":"Before answering, notice the space between the event and your judgment."}]},
+    "production": {"preset_id":"stoic-philosophy","production_id":"production-stoic-philosophy","scenes":[{"scene_number":1,"asset_key":"stoic-philosophy/scene-01","narration":"Before answering, notice the space between the event and your judgment."}],"scene_count":3},
+    "qa": {"preset_id":"stoic-philosophy","production_id":"production-stoic-philosophy","passed":true,"checks":["scene count is non-zero","every scene has an asset key","every scene has narration"],"issues":[],"scene_count":3,"score":100,"check_results":[{"label":"scene count is non-zero","passed":true},{"label":"every scene has an asset key","passed":true},{"label":"every scene has narration","passed":true}]},
+    "package": {"preset_id":"stoic-philosophy","qa_id":"production-stoic-philosophy","filename":"stoic-philosophy-short.mp4","title":"Stoic Philosophy — The Short","scene_count":3,"description":"A tightly edited short built from the selected channel preset.","tags":["stoic philosophy","shorts","storytelling"]}
+  }
+}

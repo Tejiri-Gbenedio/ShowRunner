@@ -17,4 +17,5 @@ class MockTopicAgent:
     def run(self, input: TopicInput) -> TopicOutput:
         title = self.adapter.complete_topic(f"Create a short topic for preset={input.preset.id}")
         hook = TOPICS.get(input.preset.id, (title, "A precise idea deserves a clear opening."))[1]
-        return TopicOutput(title, input.preset.id, hook)
+        reasons = ("Immediate hook for the opening seconds", "Clear visual premise", "Strong curiosity gap")
+        return TopicOutput(title, input.preset.id, hook, 90, reasons)

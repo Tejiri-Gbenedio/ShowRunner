@@ -2,7 +2,9 @@
 
 Showrunner is an offline-first control room for running a faceless YouTube Shorts pipeline. A judge can choose a channel, run a realistic mock production, inspect the result, and explicitly approve or reject it before anything is considered publish-ready.
 
-**Live demo:** `https://YOUR-RENDER-URL.example.com` (replace this placeholder after deployment)
+**Live demo:** https://showrunner-e1cz.onrender.com
+
+The Render free tier sleeps when idle, so the first load can take 30 to 60 seconds.
 
 ## What is built
 

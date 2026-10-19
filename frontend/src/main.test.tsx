@@ -4,6 +4,7 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './main';
+import realOutputs from './fixtures/real-pipeline-output.json';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -33,6 +34,30 @@ async function eventually(check: () => void) {
 function response(body: unknown, status = 200) { return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })); }
 
 describe('production flow contracts', () => {
+  it('renders the real pipeline contract for both presets', async () => {
+    for (const fixture of Object.values(realOutputs)) {
+      const content = fixture as any;
+      const reviewed = run('awaiting_review', { content });
+      vi.stubGlobal('fetch', vi.fn((url: string) => {
+        if (url.endsWith('/presets')) return response([]);
+        if (url.endsWith('/runs')) return response([reviewed]);
+        return response(reviewed);
+      }));
+      await render();
+      await act(async () => (container.querySelector('button.run') as HTMLButtonElement).click());
+      await eventually(() => {
+        expect(container.textContent).toContain(content.production.scenes[0].asset_key);
+        expect(container.textContent).toContain(String(content.qa.score));
+        for (const check of content.qa.check_results) expect(container.textContent).toContain(check.label);
+        expect(container.textContent).toContain(content.package.title);
+        expect(container.textContent).toContain(content.package.description);
+        for (const tag of content.package.tags) expect(container.textContent).toContain(`#${tag}`);
+      });
+      act(() => root.unmount());
+      container.innerHTML = '';
+      root = createRoot(container);
+    }
+  });
   it('creates and persists an anonymous UUID on the first API request', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => response(url.endsWith('/presets') ? [] : [])));
     await render();
