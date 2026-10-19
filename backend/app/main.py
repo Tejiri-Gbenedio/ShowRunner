@@ -2,6 +2,9 @@ from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 import os
+from concurrent.futures import ThreadPoolExecutor
+import threading
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
@@ -15,11 +18,15 @@ from app.pipeline import InMemoryPipelineRepository, PipelineRun, PipelineState
 from app.presets import PRESETS, list_presets
 
 app = FastAPI(title="Showrunner API", version="0.2.0")
+logger = logging.getLogger("showrunner.pipeline")
 cors_origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 repository = InMemoryPipelineRepository()
 _run_windows: dict[UUID, list[datetime]] = {}
 _ip_windows: dict[str, list[datetime]] = {}
+_executor = ThreadPoolExecutor(max_workers=max(1, int(os.getenv("PIPELINE_WORKERS", "2"))))
+_active_jobs: set[UUID] = set()
+_jobs_lock = threading.Lock()
 
 _dist = Path(__file__).resolve().parents[2] / "dist"
 if (_dist / "assets").is_dir():
@@ -35,6 +42,7 @@ def owner_id(value: str | None) -> UUID:
         raise HTTPException(400, "X-Anonymous-User-ID must be a valid UUID") from exc
 
 def get_run(owner: UUID, run_id: UUID) -> PipelineRun:
+    sweep_stale_runs()
     run = repository.get_for_owner(owner, run_id)
     if run is None:
         raise HTTPException(404, "run not found")
@@ -74,6 +82,44 @@ def client_ip(x_forwarded_for: str | None, x_real_ip: str | None) -> str:
 def limit(name: str, default: int) -> int:
     try: return max(0, int(os.getenv(name, str(default))))
     except ValueError: return default
+
+def _generating_timeout() -> float:
+    try: return max(1.0, float(os.getenv("PIPELINE_GENERATING_TIMEOUT_SECONDS", "180")))
+    except ValueError: return 180.0
+
+def sweep_stale_runs() -> int:
+    """Fail runs stuck in generating, and release their job guards."""
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=_generating_timeout())
+    changed = 0
+    for run in list(repository._runs.values()):
+        if run.state == PipelineState.GENERATING and run.updated_at and run.updated_at < cutoff:
+            try:
+                repository.update_for_owner(run.owner_id, run.id, PipelineState.FAILED, error="pipeline generation timed out after the configured limit", failed_agent="sweeper")
+                with _jobs_lock: _active_jobs.discard(run.id)
+                changed += 1
+            except ValueError:
+                pass
+    return changed
+
+def _execute_run(owner: UUID, run_id: UUID, preset) -> None:
+    try:
+        if os.getenv("LLM_PROVIDER", "mock").lower() == "mock":
+            result, run_mode, mock_reason = run_offline_sequence(preset), "mock", None
+        else:
+            result, run_mode, mock_reason = run_pipeline(preset)
+        repository.update_for_owner(owner, run_id, PipelineState.AWAITING_REVIEW, run_mode=run_mode,
+                                    mock_output=(run_mode == "mock"), mock_output_reason=mock_reason)
+        repository.attach_content(owner, run_id, asdict(result))
+    except AgentExecutionError as exc:
+        logger.error("pipeline agent failed: agent=%s reason=%s", exc.agent, str(exc))
+        real_attempt = os.getenv("LLM_PROVIDER", "mock").lower() != "mock"
+        try:
+            repository.update_for_owner(owner, run_id, PipelineState.FAILED, error=str(exc), failed_agent=exc.agent,
+                                        run_mode="real" if real_attempt else "mock", mock_output=not real_attempt)
+        except ValueError:
+            pass
+    finally:
+        with _jobs_lock: _active_jobs.discard(run_id)
 
 @app.get("/", include_in_schema=False)
 def frontend_root():
@@ -116,23 +162,38 @@ def read_run(run_id: UUID, x_anonymous_user_id: str | None = Header(default=None
 
 @app.post("/api/runs/{run_id}/advance")
 def advance_run(run_id: UUID, x_anonymous_user_id: str | None = Header(default=None)) -> dict:
+    sweep_stale_runs()
     owner = owner_id(x_anonymous_user_id)
     run = get_run(owner, run_id)
     if run.state not in {PipelineState.DRAFT, PipelineState.REVISION_REQUESTED}:
         raise HTTPException(409, "run is not ready to advance")
     preset = next(p for p in PRESETS if p.id == run.preset_id)
-    for state in (PipelineState.QUEUED, PipelineState.GENERATING): run = repository.update_for_owner(owner, run_id, state)
+    with _jobs_lock:
+        if run_id in _active_jobs:
+            return output(run)
+        _active_jobs.add(run_id)
     try:
-        if os.getenv("LLM_PROVIDER", "mock").lower() == "mock":
-            result, run_mode, mock_reason = run_offline_sequence(preset), "mock", None
-        else:
-            result, run_mode, mock_reason = run_pipeline(preset)
-        content = asdict(result)
-    except AgentExecutionError as exc:
-        real_attempt = os.getenv("LLM_PROVIDER", "mock").lower() != "mock"
-        return output(repository.update_for_owner(owner, run_id, PipelineState.FAILED, error=str(exc), failed_agent=exc.agent, run_mode="real" if real_attempt else "mock", mock_output=not real_attempt))
-    run = repository.update_for_owner(owner, run_id, PipelineState.AWAITING_REVIEW, run_mode=run_mode, mock_output=(run_mode == "mock"), mock_output_reason=mock_reason)
-    run = repository.attach_content(owner, run_id, content)
+        run = repository.update_for_owner(owner, run_id, PipelineState.QUEUED)
+        run = repository.update_for_owner(owner, run_id, PipelineState.GENERATING)
+    except ValueError:
+        with _jobs_lock: _active_jobs.discard(run_id)
+        return output(get_run(owner, run_id))
+    _executor.submit(_execute_run, owner, run_id, preset)
+    return output(run)
+
+@app.post("/api/runs/{run_id}/retry")
+def retry_run(run_id: UUID, x_anonymous_user_id: str | None = Header(default=None)) -> dict:
+    owner = owner_id(x_anonymous_user_id)
+    sweep_stale_runs()
+    run = get_run(owner, run_id)
+    if run.state != PipelineState.FAILED:
+        raise HTTPException(409, "only failed runs can be retried")
+    with _jobs_lock:
+        if run_id in _active_jobs: return output(run)
+        _active_jobs.add(run_id)
+    run = repository.update_for_owner(owner, run_id, PipelineState.QUEUED)
+    run = repository.update_for_owner(owner, run_id, PipelineState.GENERATING)
+    _executor.submit(_execute_run, owner, run_id, next(p for p in PRESETS if p.id == run.preset_id))
     return output(run)
 
 @app.post("/api/runs/{run_id}/approve")
