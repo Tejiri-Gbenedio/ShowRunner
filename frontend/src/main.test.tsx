@@ -80,6 +80,27 @@ describe('production flow contracts', () => {
     expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some(([u]) => String(u).endsWith(`/${action}`))).toBe(true);
   });
 
+  it('renders readable review panels and keeps raw data collapsed', async () => {
+    const reviewed = run('awaiting_review', { content: { topic: { title: 'Readable title', hook: 'A sharp hook', score: 88, reasons: ['Clear promise'] }, script: { scenes: [{ scene_number: 1, duration_seconds: 8, visual_direction: 'Wide shot', narration: 'Open on the storm.' }] }, production: { files: [{ name: 'cut.mp4', type: 'Video', size: '4 MB' }] }, qa: { checks: [{ label: 'Rendered', passed: true }], score: 99 }, packaging: { title: 'A YouTube title', description: 'A description', tags: ['mystery'] } } });
+    vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/presets') ? response([]) : url.endsWith('/runs') ? response([reviewed]) : response(reviewed)));
+    await render();
+    await act(async () => (container.querySelector('button.run') as HTMLButtonElement).click());
+    await eventually(() => expect(container.textContent).toContain('Readable title'));
+    expect(container.textContent).toContain('SCRIPT / SCENE TIMELINE');
+    expect(container.textContent).toContain('PRODUCTION / FILES');
+    expect(container.textContent).toContain('PACKAGING / YOUTUBE PREVIEW');
+    expect(container.querySelector('details')).toBeTruthy();
+  });
+
+  it('opens the in-memory demo from the first preset', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/presets') ? response([{ id: 'survival-thriller', name: 'Survival', niche: 'N', tone: 'T', visual_style: 'V', scene_length_seconds: 8 }]) : response([])));
+    await render();
+    await act(async () => (container.querySelector('button.demo-button') as HTMLButtonElement).click());
+    expect(container.textContent).toContain('DEMO MODE');
+    expect(container.textContent).toContain('The signal that should not exist');
+    expect(container.textContent).toContain('Nothing is saved');
+  });
+
   it('surfaces API errors to the user', async () => {
     vi.stubGlobal('fetch', vi.fn(() => response({ detail: 'service unavailable' }, 503)));
     await render();

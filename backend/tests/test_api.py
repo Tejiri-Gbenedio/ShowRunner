@@ -2,7 +2,7 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
-from app.main import _ip_windows, _run_windows, app, repository
+from app.main import _ip_windows, _run_windows, app, client_ip, repository, server_port
 
 client = TestClient(app)
 
@@ -55,6 +55,26 @@ def test_ip_rate_limit_is_configurable(monkeypatch) -> None:
     for index in range(2):
         assert client.post("/api/runs?preset_id=survival-thriller", headers={"X-Anonymous-User-ID": str(uuid4()), "X-Forwarded-For": "203.0.113.10, 10.0.0.1"}).status_code == 201
     assert client.post("/api/runs?preset_id=survival-thriller", headers={"X-Anonymous-User-ID": str(uuid4()), "X-Forwarded-For": "203.0.113.10, 10.0.0.1"}).status_code == 429
+
+
+def test_ip_rate_limit_uses_last_forwarded_entry_to_prevent_bypass(monkeypatch) -> None:
+    reset()
+    monkeypatch.setenv("MAX_RUNS_PER_OWNER_PER_HOUR", "100")
+    monkeypatch.setenv("MAX_RUNS_PER_IP_PER_HOUR", "1")
+    headers = {"X-Forwarded-For": "198.51.100.10, 10.0.0.1"}
+    assert client_ip(headers["X-Forwarded-For"], None) == "10.0.0.1"
+    assert client.post("/api/runs?preset_id=survival-thriller", headers={**headers, "X-Anonymous-User-ID": str(uuid4())}).status_code == 201
+    assert client.post("/api/runs?preset_id=survival-thriller", headers={"X-Anonymous-User-ID": str(uuid4()), "X-Forwarded-For": "203.0.113.99, 10.0.0.1"}).status_code == 429
+
+
+def test_proxy_hops_and_malformed_port_have_safe_fallbacks(monkeypatch) -> None:
+    monkeypatch.setenv("TRUSTED_PROXY_HOPS", "2")
+    assert client_ip("198.51.100.10, 10.0.0.1, 10.0.0.2", None) == "10.0.0.1"
+    assert client_ip("198.51.100.10", "10.0.0.9") == "10.0.0.9"
+    monkeypatch.setenv("PORT", "not-a-port")
+    assert server_port() == 8000
+    monkeypatch.setenv("PORT", "9187")
+    assert server_port() == 9187
 
 def test_revision_endpoint_requires_a_rejection(monkeypatch) -> None:
     reset()

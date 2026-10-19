@@ -45,8 +45,31 @@ def output(run: PipelineRun) -> dict:
             "created_at": run.created_at.isoformat() if run.created_at else None,
             "updated_at": run.updated_at.isoformat() if run.updated_at else None}
 
+def server_port() -> int:
+    """Return a valid listening port, with the local/Render default of 8000."""
+    try:
+        value = int(os.getenv("PORT", "8000"))
+    except (TypeError, ValueError):
+        return 8000
+    return value if 1 <= value <= 65535 else 8000
+
+
+def trusted_proxy_hops() -> int:
+    try:
+        value = int(os.getenv("TRUSTED_PROXY_HOPS", "1"))
+    except (TypeError, ValueError):
+        return 1
+    return value if value >= 1 else 1
+
+
 def client_ip(x_forwarded_for: str | None, x_real_ip: str | None) -> str:
-    return (x_forwarded_for.split(",")[0].strip() if x_forwarded_for else x_real_ip or "unknown")
+    """Resolve an address without allowing arbitrary XFF prefixes to bypass limits."""
+    if x_forwarded_for:
+        addresses = [part.strip() for part in x_forwarded_for.split(",") if part.strip()]
+        hops = trusted_proxy_hops()
+        if len(addresses) >= hops:
+            return addresses[-hops]
+    return (x_real_ip or "unknown").strip() or "unknown"
 
 def limit(name: str, default: int) -> int:
     try: return max(0, int(os.getenv(name, str(default))))

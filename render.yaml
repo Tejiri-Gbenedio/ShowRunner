@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: showrunner
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: STORAGE_BACKEND
+        value: memory
+      - key: CORS_ORIGINS
+        sync: false
+      - key: MAX_RUNS_PER_OWNER_PER_HOUR
+        value: "10"
+      - key: MAX_RUNS_PER_IP_PER_HOUR
+        value: "30"
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
