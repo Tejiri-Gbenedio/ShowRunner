@@ -27,7 +27,7 @@ def run_offline_sequence(preset: ChannelPreset) -> OfflineRun:
     script = _run("script_scene", lambda: MockScriptSceneAgent().run(ScriptSceneInput(preset, topic)))
     production = _run("production", lambda: MockProductionAgent().run(ProductionInput(preset, script)))
     qa = _run("qa", lambda: MockQAAgent().run(QAInput(preset, production)))
-    package = _run("packaging", lambda: MockPackagingAgent().run(PackagingInput(preset, qa)))
+    package = _run("packaging", lambda: MockPackagingAgent().run(PackagingInput(preset, qa, topic, script)))
     return OfflineRun(topic, script, production, qa, package)
 
 def run_pipeline(preset: ChannelPreset, provider=None) -> tuple[OfflineRun, str, str | None]:
@@ -44,7 +44,7 @@ def run_pipeline(preset: ChannelPreset, provider=None) -> tuple[OfflineRun, str,
                 script = _run("script_scene", lambda: MockScriptSceneAgent().run(ScriptSceneInput(preset, topic)))
                 production = _run("production", lambda: MockProductionAgent().run(ProductionInput(preset, script)))
                 qa = _run("qa", lambda: MockQAAgent().run(QAInput(preset, production)))
-                package = _run("packaging", lambda: MockPackagingAgent().run(PackagingInput(preset, qa)))
+                package = _run("packaging", lambda: MockPackagingAgent().run(PackagingInput(preset, qa, topic, script)))
                 return OfflineRun(topic, script, production, qa, package), "mock", mock_reason
             _real_runs_by_day[today] = _real_runs_by_day.get(today, 0) + 1
         try:
@@ -62,7 +62,7 @@ def run_pipeline(preset: ChannelPreset, provider=None) -> tuple[OfflineRun, str,
         return run_offline_sequence(preset), "mock", None
     production = _run("production", lambda: MockProductionAgent().run(ProductionInput(preset, script)))
     qa = _run("qa", lambda: MockQAAgent().run(QAInput(preset, production)))
-    package = _run("packaging", lambda: MockPackagingAgent().run(PackagingInput(preset, qa)))
+    package = _run("packaging", lambda: MockPackagingAgent().run(PackagingInput(preset, qa, topic, script)))
     return OfflineRun(topic, script, production, qa, package), ("mock" if mock_reason else ("real" if real else "mock")), mock_reason
 
 __all__ = ["AgentExecutionError", "MockPackagingAgent", "MockProductionAgent", "MockQAAgent", "MockScriptSceneAgent", "MockTopicAgent", "RealTopicAgent", "RealScriptSceneAgent", "run_offline_sequence", "run_pipeline"]

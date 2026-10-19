@@ -117,6 +117,27 @@ describe('production flow contracts', () => {
     expect(container.querySelector('details')).toBeTruthy();
   });
 
+  it('shows mock asset placeholders with scene associations and typed QA reasons', async () => {
+    const reviewed = run('awaiting_review', { run_mode: 'mock', content: { production: { scenes: [
+      { scene_number: 2, asset_key: 'scene-02', asset_type: 'audio', narration: 'Voice' },
+      { scene_number: 3, asset_key: 'scene-03', asset_type: 'video', narration: 'Cut' },
+    ] }, qa: { passed: false, score: 50, check_results: [
+      { label: 'audio exists', passed: true, reason: 'Audio placeholder available' },
+      { label: 'video render', passed: false, reason: 'Video render warning' },
+    ] } } });
+    vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/presets') ? response([]) : url.endsWith('/runs') ? response([reviewed]) : response(reviewed)));
+    await render();
+    await act(async () => (container.querySelector('button.run') as HTMLButtonElement).click());
+    await eventually(() => expect(container.textContent).toContain('MOCK PLACEHOLDER'));
+    expect(container.textContent).toContain('Scene 2');
+    expect(container.textContent).toContain('audio placeholder');
+    expect(container.textContent).toContain('video placeholder');
+    expect(container.textContent).toContain('Video render warning');
+    expect(container.textContent).toContain('QA needs review');
+    expect(container.querySelector('button.approve')).toBeTruthy();
+    expect(container.querySelector('button.reject')).toBeTruthy();
+  });
+
   it('opens the in-memory demo from the first preset', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/presets') ? response([{ id: 'survival-thriller', name: 'Survival', niche: 'N', tone: 'T', visual_style: 'V', scene_length_seconds: 8 }]) : response([])));
     await render();

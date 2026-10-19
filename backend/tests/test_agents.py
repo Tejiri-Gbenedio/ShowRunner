@@ -71,3 +71,43 @@ def test_individual_agents_communicate_only_via_contract_inputs() -> None:
     assert production.scene_count == len(script.scenes)
     assert qa.production_id == production.production_id
     assert package.qa_id == qa.production_id
+
+from dataclasses import replace
+from app.agent_contracts import ProducedScene, ProductionOutput
+from app.agents.qa import MockQAAgent
+
+
+def _qa(preset, scenes, total=None):
+    production = ProductionOutput(preset.id, "production-test", tuple(scenes), len(scenes), total if total is not None else sum(s.duration_seconds for s in scenes))
+    return MockQAAgent().run(QAInput(preset, production))
+
+
+def test_qa_reports_each_quality_failure_as_typed_warning():
+    preset = PRESETS[0]
+    base = ProducedScene(1, "asset", "A clear opening signal", preset.scene_length_seconds)
+    cases = [
+        ("total duration", [base], preset.target_duration_seconds + 1),
+        ("each scene duration", [replace(base, duration_seconds=1)], 1),
+        ("narration word fit", [replace(base, narration=" ".join(["word"] * 100))], preset.scene_length_seconds),
+        ("hook in scene 1", [replace(base, narration="")], preset.scene_length_seconds),
+        ("banned words/topics", [replace(base, narration="A scene with blood")], preset.scene_length_seconds),
+    ]
+    for label, scenes, total in cases:
+        result = _qa(preset, scenes, total)
+        check = next(check for check in result.check_results if check.label == label)
+        assert check.passed is False
+        assert check.reason
+        assert result.passed is False  # warnings remain visible but do not block packaging
+        assert result.score < 100
+
+
+def test_packaging_derives_metadata_and_normalizes_tags_from_topic_and_script():
+    preset = PRESETS[0]
+    topic = MockTopicAgent().run(TopicInput(preset))
+    script = MockScriptSceneAgent().run(ScriptSceneInput(preset, topic))
+    qa = _qa(preset, [ProducedScene(1, "asset", script.scenes[0].narration, preset.scene_length_seconds)])
+    package = MockPackagingAgent().run(PackagingInput(preset, qa, topic, script))
+    assert topic.title in package.title and topic.title in package.description
+    assert package.filename.endswith(".mp4")
+    assert all(tag == tag.lower() and tag.isalnum() for tag in package.tags)
+    assert "shorts" in package.tags

@@ -53,6 +53,7 @@ class ProducedScene:
     scene_number: int
     asset_key: str
     narration: str
+    duration_seconds: int = 0
 
 @dataclass(frozen=True)
 class ProductionOutput:
@@ -60,6 +61,8 @@ class ProductionOutput:
     production_id: str
     scenes: tuple[ProducedScene, ...]
     scene_count: int
+    total_duration_seconds: int = 0
+    hook: str = ""
 
 @dataclass(frozen=True)
 class QAInput:
@@ -81,11 +84,14 @@ class QAOutput:
 class QACheck:
     label: str
     passed: bool
+    reason: str = ""
 
 @dataclass(frozen=True)
 class PackagingInput:
     preset: ChannelPreset
     qa: QAOutput
+    topic: TopicOutput | None = None
+    script: ScriptSceneOutput | None = None
 
 @dataclass(frozen=True)
 class PackagingOutput:
