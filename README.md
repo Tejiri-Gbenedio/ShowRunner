@@ -27,7 +27,11 @@ Every run is owner-scoped using an anonymous browser UUID. The backend enforces 
 
 The default storage is **in-memory**. Runs reset when the server restarts or when a free Render instance sleeps. This is intentional for the buildathon demo. The `SupabasePipelineRepository` interface/stub and SQL migration are wired for future work, but the Supabase repository is **not implemented** in this version.
 
-External LLM, voice, image, and video services are not called by default. The mock adapters are deterministic and handcrafted for both presets. Real provider adapters can be added behind the existing contracts later.
+External LLM, voice, image, and video services are not called by default. Set `LLM_PROVIDER=openai_compatible` with an OpenAI-compatible `LLM_BASE_URL`, `LLM_MODEL`, and backend-only `LLM_API_KEY` to enable real Topic and Script stages. Production, QA, and Packaging remain deterministic local stages. Runs expose `run_mode` (`real`/`mock`); daily-cap exhaustion falls back to mock output with a visible reason. Keep the cap bounded (`LLM_DAILY_CAP`, default 50) and never commit a provider key.
+
+### Enabling the real LLM on Render
+
+In the Render service environment settings, set `LLM_PROVIDER` to `openai_compatible`, provide the provider's base URL and model, and add the API key as the secret `LLM_API_KEY`. The key is never returned to the browser or written to logs. `LLM_TIMEOUT` defaults to 30 seconds and `LLM_MAX_TOKENS` defaults to 800. Each real run can retry invalid structured output once; a run that still fails enters `failed`. After 50 real runs per day, new runs use deterministic mock Topic and Script output and expose `mock_output=true` plus a reason.
 
 ## Local setup
 
@@ -123,7 +127,7 @@ Makefile                Canonical offline test command
 | Area | Current implementation |
 |---|---|
 | Topic discovery | Deterministic handcrafted fixtures |
-| LLM/script generation | Mock typed adapters |
+| LLM/script generation | Real OpenAI-compatible adapters when enabled; deterministic fallback otherwise |
 | Voiceover/visuals/video | Deterministic file metadata; no external API calls |
 | QA | Local deterministic checks |
 | Packaging | Local deterministic metadata |

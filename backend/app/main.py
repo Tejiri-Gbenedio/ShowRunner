@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.agents import AgentExecutionError, run_offline_sequence
+from app.agents import AgentExecutionError, run_pipeline, run_offline_sequence
 from app.pipeline import InMemoryPipelineRepository, PipelineRun, PipelineState
 from app.presets import PRESETS, list_presets
 
@@ -122,10 +122,16 @@ def advance_run(run_id: UUID, x_anonymous_user_id: str | None = Header(default=N
         raise HTTPException(409, "run is not ready to advance")
     preset = next(p for p in PRESETS if p.id == run.preset_id)
     for state in (PipelineState.QUEUED, PipelineState.GENERATING): run = repository.update_for_owner(owner, run_id, state)
-    try: content = asdict(run_offline_sequence(preset))
+    try:
+        if os.getenv("LLM_PROVIDER", "mock").lower() == "mock":
+            result, run_mode, mock_reason = run_offline_sequence(preset), "mock", None
+        else:
+            result, run_mode, mock_reason = run_pipeline(preset)
+        content = asdict(result)
     except AgentExecutionError as exc:
-        return output(repository.update_for_owner(owner, run_id, PipelineState.FAILED, error=str(exc), failed_agent=exc.agent))
-    run = repository.update_for_owner(owner, run_id, PipelineState.AWAITING_REVIEW)
+        real_attempt = os.getenv("LLM_PROVIDER", "mock").lower() != "mock"
+        return output(repository.update_for_owner(owner, run_id, PipelineState.FAILED, error=str(exc), failed_agent=exc.agent, run_mode="real" if real_attempt else "mock", mock_output=not real_attempt))
+    run = repository.update_for_owner(owner, run_id, PipelineState.AWAITING_REVIEW, run_mode=run_mode, mock_output=(run_mode == "mock"), mock_output_reason=mock_reason)
     run = repository.attach_content(owner, run_id, content)
     return output(run)
 

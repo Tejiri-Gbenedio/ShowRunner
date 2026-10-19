@@ -50,6 +50,9 @@ class PipelineRun:
     rejection_feedback: str | None = None
     error: str | None = None
     failed_agent: str | None = None
+    run_mode: str = "mock"
+    mock_output: bool = True
+    mock_output_reason: str | None = None
 
 
 class PipelineRepository(Protocol):
