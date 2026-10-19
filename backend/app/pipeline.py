@@ -10,6 +10,7 @@ class PipelineState(StrEnum):
     DRAFT = "draft"
     QUEUED = "queued"
     GENERATING = "generating"
+    FAILED = "failed"
     AWAITING_REVIEW = "awaiting_review"
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -21,8 +22,9 @@ class PipelineState(StrEnum):
 TRANSITIONS: dict[PipelineState, frozenset[PipelineState]] = {
     PipelineState.DRAFT: frozenset({PipelineState.QUEUED}),
     PipelineState.QUEUED: frozenset({PipelineState.GENERATING}),
-    PipelineState.GENERATING: frozenset({PipelineState.AWAITING_REVIEW}),
-    PipelineState.AWAITING_REVIEW: frozenset({PipelineState.APPROVED, PipelineState.REJECTED, PipelineState.REVISION_REQUESTED}),
+    PipelineState.GENERATING: frozenset({PipelineState.AWAITING_REVIEW, PipelineState.FAILED}),
+    PipelineState.FAILED: frozenset({PipelineState.QUEUED}),
+    PipelineState.AWAITING_REVIEW: frozenset({PipelineState.APPROVED, PipelineState.REJECTED}),
     PipelineState.APPROVED: frozenset({PipelineState.PUBLISHED}),
     PipelineState.REJECTED: frozenset({PipelineState.REVISION_REQUESTED}),
     PipelineState.REVISION_REQUESTED: frozenset({PipelineState.QUEUED}),
@@ -46,6 +48,8 @@ class PipelineRun:
     updated_at: datetime | None = None
     content: object | None = None
     rejection_feedback: str | None = None
+    error: str | None = None
+    failed_agent: str | None = None
 
 
 class PipelineRepository(Protocol):

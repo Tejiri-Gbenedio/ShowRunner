@@ -18,6 +18,21 @@ def test_every_declared_transition_is_accepted() -> None:
         for target in targets:
             assert transition(current, target) is target
 
+def test_failed_runs_can_be_retried_but_cannot_be_approved() -> None:
+    assert PipelineState.FAILED in TRANSITIONS[PipelineState.GENERATING]
+    assert TRANSITIONS[PipelineState.FAILED] == frozenset({PipelineState.QUEUED})
+    with pytest.raises(ValueError):
+        transition(PipelineState.FAILED, PipelineState.APPROVED)
+
+def test_revision_requires_rejection_feedback_at_api_boundary() -> None:
+    owner = uuid4()
+    repository = InMemoryPipelineRepository()
+    run = repository.create(PipelineRun(uuid4(), owner))
+    for state in (PipelineState.QUEUED, PipelineState.GENERATING, PipelineState.AWAITING_REVIEW):
+        run = repository.update_for_owner(owner, run.id, state)
+    with pytest.raises(ValueError):
+        repository.update_for_owner(owner, run.id, PipelineState.REVISION_REQUESTED)
+
 def test_repository_isolates_owners_for_list_get_and_update() -> None:
     repository = InMemoryPipelineRepository()
     owner_a, owner_b = uuid4(), uuid4()

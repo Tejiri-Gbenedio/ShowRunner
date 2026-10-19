@@ -2,13 +2,14 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
-from app.main import _run_windows, app, repository
+from app.main import _ip_windows, _run_windows, app, repository
 
 client = TestClient(app)
 
 def reset() -> None:
     repository._runs.clear()
     _run_windows.clear()
+    _ip_windows.clear()
 
 def test_owner_isolation_for_read_list_and_approval() -> None:
     reset()
@@ -39,6 +40,39 @@ def test_rate_limit_creation() -> None:
     reset()
     owner = str(uuid4())
     headers = {"X-Anonymous-User-ID": owner}
-    for _ in range(5):
+    for _ in range(10):
         assert client.post("/api/runs?preset_id=survival-thriller", headers=headers).status_code == 201
     assert client.post("/api/runs?preset_id=survival-thriller", headers=headers).status_code == 429
+
+def test_invalid_owner_uuid_is_rejected() -> None:
+    reset()
+    assert client.get("/api/runs", headers={"X-Anonymous-User-ID": "not-a-uuid"}).status_code == 400
+
+def test_ip_rate_limit_is_configurable(monkeypatch) -> None:
+    reset()
+    monkeypatch.setenv("MAX_RUNS_PER_OWNER_PER_HOUR", "100")
+    monkeypatch.setenv("MAX_RUNS_PER_IP_PER_HOUR", "2")
+    for index in range(2):
+        assert client.post("/api/runs?preset_id=survival-thriller", headers={"X-Anonymous-User-ID": str(uuid4()), "X-Forwarded-For": "203.0.113.10, 10.0.0.1"}).status_code == 201
+    assert client.post("/api/runs?preset_id=survival-thriller", headers={"X-Anonymous-User-ID": str(uuid4()), "X-Forwarded-For": "203.0.113.10, 10.0.0.1"}).status_code == 429
+
+def test_revision_endpoint_requires_a_rejection(monkeypatch) -> None:
+    reset()
+    owner = str(uuid4())
+    headers = {"X-Anonymous-User-ID": owner}
+    run = client.post("/api/runs?preset_id=survival-thriller", headers=headers).json()
+    assert client.post(f"/api/runs/{run['id']}/revise", headers=headers).status_code == 409
+
+def test_agent_exception_is_recorded_as_failed(monkeypatch) -> None:
+    reset()
+    owner = str(uuid4())
+    headers = {"X-Anonymous-User-ID": owner}
+    run = client.post("/api/runs?preset_id=survival-thriller", headers=headers).json()
+    def fail(_preset):
+        from app.agents import AgentExecutionError
+        raise AgentExecutionError("production", RuntimeError("fixture failure"))
+    monkeypatch.setattr("app.main.run_offline_sequence", fail)
+    result = client.post(f"/api/runs/{run['id']}/advance", headers=headers).json()
+    assert result["state"] == "failed"
+    assert result["failed_agent"] == "production"
+    assert result["error"] == "fixture failure"

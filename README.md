@@ -20,6 +20,8 @@ npm ci
 
 Run the API with `uvicorn app.main:app --app-dir backend --reload`. It is available at http://localhost:8000 and its docs at http://localhost:8000/docs.
 
+For the separate frontend development server, set `VITE_API_URL=http://localhost:8000` in a frontend environment file and run `npm run dev -- --config frontend/vite.config.ts`. The Docker image serves the built frontend and API together from http://localhost:8000.
+
 ## Tests
 
 After dependencies are installed, this command performs no network requests and is the canonical offline test command: `make test`.

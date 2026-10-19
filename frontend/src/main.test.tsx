@@ -1,0 +1,88 @@
+// @vitest-environment jsdom
+import { act } from 'react';
+import React from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { App } from './main';
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+const owner = '11111111-1111-4111-8111-111111111111';
+const run = (state: string, extra: Record<string, unknown> = {}) => ({
+  id: '22222222-2222-4222-8222-222222222222', preset_id: 'survival-thriller', state,
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', ...extra,
+});
+
+let container: HTMLDivElement;
+let root: Root;
+beforeEach(() => {
+  container = document.createElement('div'); document.body.appendChild(container);
+  localStorage.clear(); vi.stubGlobal('crypto', { randomUUID: vi.fn(() => owner) });
+  root = createRoot(container);
+});
+afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks(); });
+
+async function render() {
+  await act(async () => root.render(<App />));
+  await act(async () => Promise.resolve());
+}
+async function eventually(check: () => void) {
+  for (let i = 0; i < 30; i++) { try { check(); return; } catch { await act(async () => new Promise(r => setTimeout(r, 0))); } }
+  check();
+}
+function response(body: unknown, status = 200) { return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })); }
+
+describe('production flow contracts', () => {
+  it('creates and persists an anonymous UUID on the first API request', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => response(url.endsWith('/presets') ? [] : [])));
+    await render();
+    expect(localStorage.getItem('showrunner-anonymous-id')).toBe(owner);
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].headers['X-Anonymous-User-ID']).toBe(owner);
+  });
+
+  it('starts a run, advances it, and shows the review deck', async () => {
+    const created = run('draft'); const reviewed = run('awaiting_review', { content: { hook: 'A hook' } });
+    vi.stubGlobal('fetch', vi.fn((url: string, options?: RequestInit) => {
+      if (url.endsWith('/presets')) return response([{ id: 'survival-thriller', name: 'Survival', niche: 'N', tone: 'T', visual_style: 'V', scene_length_seconds: 8 }]);
+      if (url.includes('/runs?') && options?.method === 'POST') return response(created, 201);
+      if (url.endsWith('/advance')) return response(reviewed);
+      return response([]);
+    }));
+    await render();
+    await act(async () => (container.querySelector('button.primary') as HTMLButtonElement).click());
+    await eventually(() => expect(container.textContent).toContain('A hook'));
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some(([u]) => String(u).endsWith('/advance'))).toBe(true);
+  });
+
+  it.each([
+    ['approve', 'APPROVE CUT ✓', run('approved')],
+    ['reject', 'REJECT WITH FEEDBACK', run('rejected', { rejection_feedback: 'Make it sharper' })],
+  ])('supports %s feedback action', async (action, buttonText, result) => {
+    const reviewed = run('awaiting_review', { content: { hook: 'A hook' } });
+    vi.stubGlobal('fetch', vi.fn((url: string, options?: RequestInit) => {
+      if (url.endsWith('/presets')) return response([]);
+      if (url.endsWith('/runs')) return response([reviewed]);
+      if (url.endsWith(`/${action}`)) return response(result);
+      return response(reviewed);
+    }));
+    await render();
+    await act(async () => (container.querySelector('button.run') as HTMLButtonElement).click());
+    await eventually(() => expect(container.textContent).toContain('A hook'));
+    if (action === 'reject') {
+      await act(async () => (container.querySelector('button.secondary') as HTMLButtonElement).click());
+      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Make it sharper');
+        textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: 'Make it sharper' }));
+      });
+      await act(async () => (container.querySelector('button.reject') as HTMLButtonElement).click());
+    } else await act(async () => (container.querySelector('button.approve') as HTMLButtonElement).click());
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some(([u]) => String(u).endsWith(`/${action}`))).toBe(true);
+  });
+
+  it('surfaces API errors to the user', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => response({ detail: 'service unavailable' }, 503)));
+    await render();
+    await eventually(() => expect(container.textContent).toContain('service unavailable'));
+  });
+});
