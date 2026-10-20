@@ -1,3 +1,4 @@
+import re
 from app.agent_contracts import Scene, ScriptSceneInput, ScriptSceneOutput
 from app.llm import OpenAICompatibleProvider
 
@@ -31,7 +32,11 @@ class RealScriptSceneAgent:
                 visual = item.get("visual_direction", item.get("visual", item.get("visuals")))
                 if not isinstance(narration, str) or not narration.strip(): raise ValueError(f"script_scene.scenes[{index - 1}].narration: unusable")
                 if not isinstance(visual, str) or not visual.strip(): raise ValueError(f"script_scene.scenes[{index - 1}].visual_direction: unusable")
-                try: duration = int(float(item.get("duration_seconds", item.get("duration", input.preset.scene_length_seconds))))
+                try:
+                    duration_value = item.get("duration_seconds", item.get("duration", input.preset.scene_length_seconds))
+                    if isinstance(duration_value, str):
+                        duration_value = re.search(r"\d+(?:\.\d+)?", duration_value).group(0)
+                    duration = int(float(duration_value))
                 except (TypeError, ValueError): raise ValueError(f"script_scene.scenes[{index - 1}].duration_seconds: invalid")
                 try: number = int(item.get("scene_number", item.get("scene", index)))
                 except (TypeError, ValueError): number = index

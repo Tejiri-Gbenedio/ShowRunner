@@ -5,6 +5,9 @@ from fastapi.testclient import TestClient
 
 from app.main import _ip_windows, _run_windows, app, client_ip, repository, server_port
 from app.pipeline import PipelineState
+from app.llm import LLMConfig, OpenAICompatibleProvider
+from app.agents import run_pipeline
+from app.presets import PRESETS
 
 client = TestClient(app)
 
@@ -170,3 +173,47 @@ def test_failed_retry_requeues_and_runs_pipeline():
     retried = client.post(f"/api/runs/{run['id']}/retry", headers=headers).json()
     assert retried["state"] == "generating"
     assert wait_for_state(run["id"], headers, "awaiting_review")["content"]
+
+def test_full_http_pipeline_uses_real_presets_in_mock_mode(monkeypatch):
+    reset()
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+    for preset in PRESETS:
+        owner = str(uuid4()); headers = {"X-Anonymous-User-ID": owner}
+        created = client.post(f"/api/runs?preset_id={preset.id}", headers=headers).json()
+        client.post(f"/api/runs/{created['id']}/advance", headers=headers)
+        reviewed = wait_for_state(created["id"], headers, "awaiting_review")
+        qa = reviewed["content"]["qa"]
+        assert [check["label"] for check in qa["check_results"]] == [
+            "total duration", "each scene duration", "narration word fit", "hook in scene 1", "banned words/topics"
+        ]
+        assert qa["score"] >= 0
+        assert reviewed["content"]["package"]["title"]
+
+def test_full_http_pipeline_uses_real_presets_with_fake_llm_transport(monkeypatch):
+    reset()
+    responses = {
+        "survival-thriller": ['{"title":"Live Snow Signal","hook":"A signal answers beneath the snow.","score":"8/10","reasons":"Immediate mystery"}', '{"scenes":[{"duration":"6 seconds","visual":"A radio under ice","voiceover":"The radio answers from below."}] }'],
+        "stoic-philosophy": ['{"title":"The Useful Pause","hook":"The pause is where choice begins.","score":0.87,"reasons":["Practical lesson"]}', '{"scenes":[{"duration_seconds":"8","narrator":"Pause before judging.","visual_direction":"Ink rests on a page."}] }'],
+    }
+    def fake_run(preset):
+        values = responses[preset.id]
+        calls = []
+        def transport(url, headers, payload, timeout):
+            calls.append(url)
+            return {"choices": [{"finish_reason": "stop", "message": {"content": values.pop(0)}}]}
+        provider = OpenAICompatibleProvider(LLMConfig(base_url="https://fake.invalid/v1", model="fake", daily_cap=10), transport)
+        return run_pipeline(preset, provider)
+    monkeypatch.setattr("app.main.run_pipeline", fake_run)
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compatible")
+    for preset in PRESETS:
+        owner = str(uuid4()); headers = {"X-Anonymous-User-ID": owner}
+        created = client.post(f"/api/runs?preset_id={preset.id}", headers=headers).json()
+        client.post(f"/api/runs/{created['id']}/advance", headers=headers)
+        reviewed = wait_for_state(created["id"], headers, "awaiting_review")
+        content = reviewed["content"]
+        assert reviewed["run_mode"] == "real"
+        assert [check["label"] for check in content["qa"]["check_results"]] == [
+            "total duration", "each scene duration", "narration word fit", "hook in scene 1", "banned words/topics"
+        ]
+        assert content["package"]["title"]
+        assert all(tag.isalnum() and tag == tag.lower() for tag in content["package"]["tags"])
