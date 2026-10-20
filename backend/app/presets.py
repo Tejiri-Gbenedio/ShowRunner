@@ -10,10 +10,15 @@ class ChannelPreset:
     visual_style: str
     voice_settings: dict[str, str]
     quality_rules: tuple[str, ...]
+    target_duration_seconds: int = 60
+    speaking_rate_wpm: int = 150
+    banned_words: tuple[str, ...] = ()
+    banned_topics: tuple[str, ...] = ()
+    packaging_style: str = "cinematic short"
 
 PRESETS = (
-    ChannelPreset("survival-thriller", "Last Signal", "survival-story thriller", "tense, cinematic, restrained", 6, "cold blue night footage with amber emergency light", {"voice": "low male narrator", "pace": "urgent but intelligible"}, ("Hook within 2 seconds", "No graphic claims", "Escalation every scene", "Under 60 seconds")),
-    ChannelPreset("stoic-philosophy", "The Quiet Discipline", "stoic philosophy", "calm, reflective, practical", 8, "minimal stone, paper, dawn light, slow camera movement", {"voice": "warm neutral narrator", "pace": "measured"}, ("One practical lesson", "Accurate attribution", "Clear takeaway", "Under 60 seconds")),
+    ChannelPreset("survival-thriller", "Last Signal", "survival-story thriller", "tense, cinematic, restrained", 6, "cold blue night footage with amber emergency light", {"voice": "low male narrator", "pace": "urgent but intelligible"}, ("Hook within 2 seconds", "No graphic claims", "Escalation every scene", "Under 60 seconds"), 60, 150, ("gore", "blood"), ("graphic violence",), "cinematic suspense short"),
+    ChannelPreset("stoic-philosophy", "The Quiet Discipline", "stoic philosophy", "calm, reflective, practical", 8, "minimal stone, paper, dawn light, slow camera movement", {"voice": "warm neutral narrator", "pace": "measured"}, ("One practical lesson", "Accurate attribution", "Clear takeaway", "Under 60 seconds"), 60, 130, ("hustle",), ("political campaigning",), "reflective lesson short"),
 )
 
 def list_presets() -> list[dict]:
