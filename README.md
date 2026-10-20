@@ -1,6 +1,14 @@
 # Showrunner
 
-Showrunner is an offline-first control room for running a faceless YouTube Shorts pipeline. The live demo currently runs **Real Gemini LLM for Topic and Script with a labelled mock fallback**. A judge can choose a channel, run a production, inspect the result, and explicitly approve or reject it before anything is considered publish-ready.
+## Why I built this
+
+I run a faceless YouTube channel, **Plotteafiles — True real life facts that sounds like a lie**, and I am opening a second one, **Axiom Rust — Philosophy facts, quotes and advice**. Showrunner started from that real problem: helping a solo faceless-channel creator move from an idea to a reviewable Short without having to operate every step manually. It was started from scratch during the Frontier Buildathon, with no code reused from earlier projects.
+
+The first two presets are close to those real channels. With more tweaks they can become production- and post-ready. The current build focuses on my two channels rather than pretending to serve every possible channel, but the plan is to keep building it after the hackathon so it can help other creators too.
+
+Showrunner is an offline-first control room for running a faceless YouTube Shorts pipeline. A creator can choose a channel, run the agent workflow, inspect the result, and explicitly approve or reject it before anything is considered publish-ready.
+
+The live demo currently runs **real Gemini LLM for Topic and Script with a labelled mock fallback**.
 
 **Live demo:** https://showrunner-e1cz.onrender.com
 
@@ -12,7 +20,7 @@ The pipeline has five typed agent stages:
 
 1. **Topic Agent** — returns scored story ideas with hooks and reasons.
 2. **Script & Scene Agent** — creates narration and timed scene directions.
-3. **Production Agent** — creates placeholder asset records for mock image, audio, and video outputs; it does not create real media files.
+3. **Production Agent** — creates placeholder asset records labelled as mock for image, audio, and video outputs; it does not create real media files.
 4. **QA Agent** — checks total duration, each scene's duration, narration fit against the preset speaking rate, a hook in scene 1, and banned words/topics. It produces a score and a reason for every check.
 5. **Packaging Agent** — prepares a YouTube-style title, description, tags, and upload metadata.
 
@@ -32,6 +40,22 @@ External voice, image, and video services are not called by default. Set `LLM_PR
 ### Enabling the real LLM on Render
 
 In the Render service environment settings, set `LLM_PROVIDER` to `openai_compatible`, provide the provider's base URL and model, and add the API key as the secret `LLM_API_KEY`. The key is never returned to the browser or written to logs. `LLM_TIMEOUT` defaults to 30 seconds and `LLM_MAX_TOKENS` defaults to 2000, with a small reservation for structured JSON. Each real agent call can make up to three total attempts; a run that still fails enters `failed` unless `LLM_FALLBACK_TO_MOCK=true`, in which case the affected agent uses a clearly labelled mock fallback. After 50 real runs per day, new runs use deterministic mock Topic and Script output and expose `mock_output=true` plus a reason.
+
+## Adding a new channel
+
+Channel presets are currently defined in `backend/app/presets.py` as `ChannelPreset` entries. A preset supplies:
+
+- `id`, `name`, `niche`, and `tone`
+- `scene_length_seconds` and `target_duration_seconds`
+- `visual_style` and `voice_settings`
+- `quality_rules`
+- `speaking_rate_wpm`
+- `banned_words` and `banned_topics`
+- `packaging_style`
+
+The Topic, Script & Scene, Production, QA, and Packaging agents receive the selected preset through their typed inputs. The QA agent uses the duration, speaking-rate, and banned-content fields; the Packaging Agent uses the topic, script, niche, and packaging style. The frontend receives the available presets from `GET /api/presets`.
+
+Adding a channel currently requires a code change in `backend/app/presets.py`, followed by tests, a rebuild, and a redeploy. There is not yet a UI for creating or editing presets. This is how the Axiom Rust preset is represented for now.
 
 ## Local setup
 
@@ -163,10 +187,15 @@ The repository history and development sessions followed this sequence:
 6. **Real LLM adapter** — added the OpenAI-compatible chat-completions adapter, JSON validation, retries, reasoning effort, token limits, daily cap, and labelled fallback. Sub-agents implemented the adapter and integration tests. The default remains mock and the offline Docker test never calls the network.
 7. **Reliability and QA fixes** — added background execution, per-agent timeouts, stale-run sweeping, retry handling, tolerant model parsing, specific diagnostics, preset-based QA, topic-derived packaging, tag normalization, and real-preset HTTP coverage. The live-deployment issues found included generic LLM errors, stuck generating runs, malformed tags, wrong review-panel field names, and the missing QA preset fields; each was addressed with code or regression tests.
 
-## Next steps
+## Roadmap
 
-- Implement real production adapters for voice, images, and video assembly.
-- Implement the Supabase repository behind the existing interface.
-- Add publishing to YouTube after the approval gate.
-- Add authentication and stronger identity controls.
-- Add real analytics and trend data for topic scoring.
+The following items are planned, not built yet, and are ordered by what is most useful next:
+
+1. **Real production adapters** for voice, visuals, and video assembly.
+2. **The Supabase repository** so runs persist beyond process restarts and Render sleeps.
+3. **YouTube publishing** after the human approval gate.
+4. **Preset management in the app**, so channels can be created and edited without code.
+5. **Authentication** and stronger identity controls.
+6. **Real analytics** to improve topic scoring over time.
+
+I plan to keep building Showrunner after the buildathon; there are no delivery dates promised by this roadmap.
